@@ -5,7 +5,7 @@ const VARIANTS = {
   // Dark button on a light page. Sand sweeps in.
   primary: { shell: "bg-ink text-paper hover:text-ink", fill: "bg-sand" },
   // Outlined button on a light page. Ink sweeps in.
-  outline: { shell: "border border-ink text-ink hover:text-paper", fill: "bg-ink" },
+  outline: { shell: "border border-ink/80 text-ink hover:text-paper", fill: "bg-ink" },
   // Outlined button on the dark presenter screen. Paper sweeps in.
   ghostDark: { shell: "border border-paper/30 text-paper hover:text-ink", fill: "bg-paper" },
   // Sand button on a dark background. Paper sweeps in.
@@ -28,8 +28,8 @@ export default function Button({
 }) {
   const v = VARIANTS[variant];
   const classes =
-    `group relative inline-flex items-center justify-center overflow-hidden rounded-full font-medium ` +
-    `transition-[color,transform] duration-300 active:scale-[0.96] ` +
+    `group relative inline-flex items-center justify-center overflow-hidden rounded-full font-medium tracking-tight ` +
+    `transition-[color,transform,box-shadow] duration-300 active:scale-[0.96] ` +
     `disabled:cursor-not-allowed disabled:opacity-40 ${SIZES[size]} ${v.shell} ${className}`;
 
   const content = (

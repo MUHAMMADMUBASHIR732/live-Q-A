@@ -32,6 +32,7 @@ model Question {
   sessionId   String
   session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   text        String
+  authorName  String? // optional display name chosen by the asker
   authorToken String
   status      String   @default("visible") // visible | hidden | answered | pinned
   upvoteCount Int      @default(0)
@@ -39,6 +40,7 @@ model Question {
   cluster     Cluster? @relation(fields: [clusterId], references: [id])
   createdAt   DateTime @default(now())
   upvotes     Upvote[]
+  replies     Reply[]
 
   @@index([sessionId])
 }
@@ -50,4 +52,27 @@ model Upvote {
   voterToken String
 
   @@unique([questionId, voterToken])
+}
+
+// A private reply from the presenter. Only the person who asked (and the presenter) can read it.
+model Reply {
+  id         String      @id @default(cuid())
+  questionId String
+  question   Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String      @default("")
+  createdAt  DateTime    @default(now())
+  files      ReplyFile[]
+
+  @@index([questionId])
+}
+
+// Files are stored in the database so no extra storage service is needed.
+model ReplyFile {
+  id       String @id @default(cuid())
+  replyId  String
+  reply    Reply  @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  name     String
+  size     Int
+  mimeType String
+  data     Bytes
 }

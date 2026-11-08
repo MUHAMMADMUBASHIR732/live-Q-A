@@ -39,6 +39,7 @@ export async function POST(request) {
   const body = await request.json().catch(() => ({}));
   const { joinCode, text, voterToken } = body;
   const clean = typeof text === "string" ? text.trim() : "";
+  const name = typeof body.name === "string" ? body.name.trim().slice(0, 40) : "";
 
   if (!clean || clean.length > 280 || !voterToken || typeof joinCode !== "string") {
     return NextResponse.json({ error: "Invalid question" }, { status: 400 });
@@ -63,7 +64,12 @@ export async function POST(request) {
   }
 
   const question = await db.question.create({
-    data: { sessionId: session.id, text: clean, authorToken: String(voterToken) },
+    data: {
+      sessionId: session.id,
+      text: clean,
+      authorName: name || null,
+      authorToken: String(voterToken),
+    },
     include: { cluster: true },
   });
 

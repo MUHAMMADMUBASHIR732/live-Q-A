@@ -27,7 +27,7 @@ export default function JoinForm() {
         placeholder="Join code"
         autoComplete="off"
         autoCapitalize="characters"
-        className="w-36 rounded-full border border-ink/30 bg-paper px-4 py-3 font-medium uppercase tracking-widest transition-[border-color,width] duration-300 placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-ink/55 hover:border-ink/60 focus:w-44 focus:border-ink"
+        className="w-36 rounded-full border border-ink/30 bg-paper px-4 py-3 font-mono font-medium uppercase tracking-widest transition-[border-color,width] duration-300 placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-ink/55 hover:border-ink/60 focus:w-44 focus:border-ink"
       />
       <Button type="submit" variant="outline" size="lg" disabled={!code.trim()}>
         Join

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFlip } from "@/hooks/useFlip";
+import HexGrid from "@/components/HexGrid";
 
 const INITIAL = [
   {
@@ -89,7 +90,7 @@ export default function DemoBoard() {
     <div
       ref={cardRef}
       onMouseMove={trackPointer}
-      className="group relative overflow-hidden rounded-3xl bg-ink p-5 text-paper shadow-[0_24px_60px_-30px_rgba(34,51,59,0.8)] transition-transform duration-500 hover:-translate-y-1 sm:p-7"
+      className="group relative overflow-hidden rounded-[1.75rem] border border-paper/10 bg-ink p-5 text-paper shadow-[0_40px_80px_-40px_rgba(34,51,59,0.9)] transition-transform duration-500 hover:-translate-y-1 sm:p-7"
       aria-label="Sample presenter board"
     >
       {/* A soft sand spotlight follows the pointer. */}
@@ -102,11 +103,22 @@ export default function DemoBoard() {
         }}
       />
 
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 text-paper/[0.06]"
+        style={{
+          maskImage: "radial-gradient(70% 70% at 100% 0%, black, transparent 80%)",
+          WebkitMaskImage: "radial-gradient(70% 70% at 100% 0%, black, transparent 80%)",
+        }}
+      >
+        <HexGrid id="demo-hex" size={24} />
+      </div>
+
       <div className="relative">
         <div className="flex items-center justify-between gap-4 border-b border-paper/15 pb-4">
-          <p className="font-display text-xl font-medium">Product launch Q&amp;A</p>
-          <p className="rounded-md bg-sand px-2.5 py-1 text-sm font-semibold text-ink">
-            Join code K7M2QX
+          <p className="font-display text-2xl">Product launch Q&amp;A</p>
+          <p className="rounded-md bg-sand px-2.5 py-1 font-mono text-sm font-semibold text-ink">
+            K7M2QX
           </p>
         </div>
 
@@ -115,7 +127,7 @@ export default function DemoBoard() {
             const sorted = [...group.items].sort((a, b) => b.votes - a.votes);
             return (
               <div key={group.topic} className="mt-5">
-                <p className="font-display text-lg text-sand">{group.topic}</p>
+                <p className="font-display text-xl text-sand">{group.topic}</p>
                 <ul className="mt-2 space-y-2">
                   {sorted.map((item) => {
                     const i = rowIndex++;

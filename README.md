@@ -1,14 +1,15 @@
-# Askboard: live Q&A with AI
+# Hexa AskBoard: live Q&A with private replies and AI
 
-Your audience scans a QR code, asks questions, and upvotes the best ones. Questions appear live
-on the presenter's screen. AI hides spam and groups similar questions by topic, and can write a
-summary at the end.
+Your audience scans a QR code, asks questions, and upvotes the best ones. Questions appear live on
+the presenter's screen. The presenter can **reply privately to any one person, with text and files
+of any type**, and nobody else can see it. AI hides spam, groups similar questions by topic, and can
+write a summary at the end.
 
-Built with Next.js (App Router), React, Tailwind CSS, PostgreSQL with Prisma, and plain
-JavaScript (no TypeScript).
+Built with Next.js (App Router), React, Tailwind CSS, PostgreSQL with Prisma, and plain JavaScript
+(no TypeScript).
 
-Theme: paper `#EFF3F1`, ink `#22333B`, sage `#5E8B7E`, sand `#C7A17A`. The page background is
-never white.
+Theme: paper `#EFF3F1`, ink `#22333B`, sage `#5E8B7E`, sand `#C7A17A`. The page background is never
+white. Type: Instrument Serif (display), Instrument Sans (body), JetBrains Mono (codes).
 
 ---
 
@@ -44,6 +45,60 @@ That is all you need. Everything else is optional and the app works without it:
 | Upstash Redis (`UPSTASH_*`) | In-memory rate limits (fine for one server) | Shared rate limits across servers |
 | Anthropic key (`ANTHROPIC_API_KEY`) | Free built-in fake AI (`AI_MODE=mock`) | Real AI moderation, grouping and summaries |
 
+## Updating an existing install (private replies)
+
+This version adds an optional asker name to questions, plus two new tables for private replies and
+their files. Nothing is removed, so your existing sessions and questions are kept.
+
+1. Copy the new project files over your old project. **Keep your `.env` file.**
+2. Then run:
+
+```bash
+npm install
+npx prisma db push
+```
+
+`db push` adds the new column and tables to your database directly. It does not need migration
+files, so it works even if your old `prisma/migrations` folder is missing or different. (If you
+prefer migrations and keep your old `prisma/migrations` folder, `npx prisma migrate dev --name
+add_private_replies` also works. If it ever asks to reset the database, stop and use `db push`
+instead.)
+
+If your live site uses the same Neon database, it already has the new tables after this step.
+Push your code to GitHub so Vercel redeploys.
+
+## Private replies
+
+- **Presenter:** on the presenter board, click **Reply privately** on any question. A sheet opens.
+  Write a reply, then add files by choosing them, dragging them in, or pasting a screenshot or file.
+  Any file type works, up to 3 files and 4 MB in total. Optionally mark the question as answered on
+  the shared board (everyone sees the label, nobody sees the reply).
+- **The person who asked:** a **Private from the presenter** card appears at the top of their page,
+  on the same device and browser they used to ask. They can download the files from there.
+- **Everyone else:** sees nothing. No indicator, no content.
+- **Names:** askers can add an optional name, which is shown with their question, so the presenter
+  can see who they are replying to.
+
+How the privacy works:
+
+- A reply is matched to its asker by the secret token stored in their browser. The server only
+  returns a reply, or its files, to a request that carries that token (or the presenter's token).
+- Replies are never sent through the shared live channel. The live ping to the asker has no
+  content, and the reply itself is fetched with their token.
+- Files are downloaded with a POST request (the token never appears in a URL) and are always sent
+  as attachments with `application/octet-stream` and `nosniff`, so they are saved, never opened
+  inside the site. Anyone without access gets a plain 404.
+
+Limits to know about:
+
+- If the asker clears their browser data or switches device, they lose access to replies. Askers
+  are anonymous, so there is no other way to prove who they are.
+- Files are stored in the database. That is simple and needs no extra service, but large uploads
+  grow the database quickly. For bigger files or heavy use, move storage to a service such as
+  Vercel Blob or S3.
+- Vercel limits a request to about 4.5 MB, which is why the total is capped at 4 MB.
+- The presenter's token lives only in the browser that created the session.
+
 ## Check that it works
 
 1. Create a session. You land on the presenter board with a QR code and a six-character code.
@@ -54,6 +109,10 @@ That is all you need. Everything else is optional and the app works without it:
 6. Post `Pricing for teams?` and `Pricing for students?`. Both get the topic label Pricing.
 7. On the presenter board, use **Pin**, **Mark answered**, **Hide**, **Summarize questions**,
    and **End session**.
+8. Post a question in one browser window, with a name. Then, on the presenter board, click **Reply
+   privately**, write a reply, attach a file, and send. The reply should appear in the first
+   window under **Private from the presenter**, with a working Download button.
+9. Open the join link in a third window (or a private window) and confirm it shows no reply.
 
 Run the unit tests with `npm test`.
 
@@ -109,19 +168,28 @@ app/
     sessions/[id]/status        PATCH end or reopen (presenter)
     questions/route.js          GET sync, POST submit
     questions/[id]/route.js     PATCH pin / answer / hide (presenter)
+    questions/[id]/reply        POST private reply with files (presenter)
+    replies/mine                POST the asker's own private replies
+    sessions/[id]/replies       POST replies the presenter already sent
+    files/[id]                  POST download a private file (asker or presenter only)
     upvote/route.js             POST upvote
 components/
   AudienceView, PresenterBoard  the two live screens
   NegativeHeading, DemoBoard    landing page heading effect and the self-playing sample board
   Button, JoinForm, Logo        shared UI
   Marquee, Reveal, LiveDot      ticker, scroll reveal, pulsing status dot
+  ReplyDrawer, PrivateInbox     the presenter's private reply sheet, and the asker's inbox
+  FileBadge, FileChip           file rows and downloads
+  HexIcon, HexGrid, Logo        the hexagon brand motif
+  PrivateReplyDemo, SpotlightCard  landing page showcase pieces
   AnimatedNumber, Skeleton      counting numbers, loading placeholders
 hooks/
   useLiveQuestions.js           Pusher or polling, one reducer
   useFlip.js                    smooth re-ordering of lists
   useFreshIds.js                highlights questions that just arrived
-lib/                            db, serialize, voter, sort, ratelimit, pusher, ai, similarity
-prisma/schema.prisma            Session, Question, Cluster, Upvote
+  useMyReplies.js               the asker's private replies (ping channel or polling)
+lib/                            db, serialize, voter, sort, ratelimit, pusher, ai, similarity, files, download
+prisma/schema.prisma            Session, Question, Cluster, Upvote, Reply, ReplyFile
 tests/                          Vitest unit tests
 ```
 

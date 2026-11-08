@@ -5,7 +5,7 @@ import PresenterBoard from "@/components/PresenterBoard";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Presenter board | Askboard" };
+export const metadata = { title: "Presenter board | Hexa AskBoard" };
 
 export default async function PresentPage({ params }) {
   const { id } = await params;

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import Logo from "@/components/Logo";
 import Button from "@/components/Button";
+import HexGrid from "@/components/HexGrid";
 
 // A tiny stable hash so the preview code changes as you type.
 function previewCode(text) {
@@ -26,7 +27,7 @@ export default function CreatePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const code = previewCode(title.trim() || "Askboard");
+  const code = previewCode(title.trim() || "Hexa AskBoard");
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -43,7 +44,7 @@ export default function CreatePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not create the session.");
 
-      // Only this browser holds the presenter token, so only it can moderate.
+      // Only this browser holds the presenter token, so only it can moderate and reply.
       localStorage.setItem(`presenter:${data.id}`, data.presenterToken);
       router.push(`/present/${data.id}`);
     } catch (err) {
@@ -53,23 +54,22 @@ export default function CreatePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-5xl flex-col px-6 py-6">
+    <main className="relative mx-auto flex min-h-dvh max-w-5xl flex-col px-6 py-6">
       <header>
-        <Link href="/" aria-label="Askboard home" className="inline-block">
+        <Link href="/" aria-label="Hexa AskBoard home" className="inline-block">
           <Logo />
         </Link>
       </header>
 
-      <div className="grid flex-1 items-center gap-12 pb-16 pt-10 md:grid-cols-2">
+      <div className="grid flex-1 items-center gap-14 pb-16 pt-10 md:grid-cols-2">
         <div>
-          <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">
-            Start a session
-          </h1>
-          <p className="mt-3 max-w-[44ch] text-ink/80">
-            Name your event. You will get a QR code and a join code to show your audience.
+          <h1 className="font-display text-6xl leading-[0.98] sm:text-7xl">Start a session</h1>
+          <p className="mt-4 max-w-[44ch] text-lg text-ink/80">
+            Name your event. You will get a QR code and a join code to show your audience, and
+            you can reply privately to anyone who asks.
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-9 space-y-4">
             <div>
               <label htmlFor="title" className="block font-medium">
                 Event title
@@ -81,7 +81,7 @@ export default function CreatePage() {
                 maxLength={120}
                 placeholder="Product launch Q&A"
                 autoFocus
-                className="mt-2 w-full rounded-xl border border-ink/30 bg-paper px-4 py-3 text-lg transition-[border-color,box-shadow] duration-300 placeholder:text-ink/50 hover:border-ink/60 focus:border-ink focus:shadow-[0_0_0_4px_rgba(94,139,126,0.25)]"
+                className="mt-2 w-full rounded-2xl border border-ink/30 bg-paper px-4 py-3.5 text-lg transition-[border-color,box-shadow] duration-300 placeholder:text-ink/50 hover:border-ink/60 focus:border-ink focus:shadow-[0_0_0_4px_rgba(94,139,126,0.25)]"
               />
             </div>
             <Button type="submit" size="lg" disabled={loading || !title.trim()}>
@@ -95,38 +95,48 @@ export default function CreatePage() {
 
         {/* Live preview: the title and a sample code update as you type. */}
         <div
-          className="rounded-3xl bg-ink p-6 text-paper shadow-[0_24px_60px_-30px_rgba(34,51,59,0.8)] transition-transform duration-500 hover:-translate-y-1 hover:rotate-1 sm:p-8"
+          className="relative overflow-hidden rounded-[2rem] border border-paper/10 bg-ink p-7 text-paper shadow-[0_40px_80px_-40px_rgba(34,51,59,0.9)] transition-transform duration-500 hover:-translate-y-1 hover:rotate-1 sm:p-9"
           aria-label="Preview of your board"
         >
-          <p className="text-sm text-paper/70">Preview</p>
-          <p
-            className={`mt-2 min-h-[2.5rem] break-words font-display text-3xl font-semibold leading-tight transition-opacity duration-300 ${
-              title.trim() ? "opacity-100" : "opacity-50"
-            }`}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 text-paper/[0.07]"
+            style={{
+              maskImage: "radial-gradient(80% 80% at 100% 0%, black, transparent 80%)",
+              WebkitMaskImage: "radial-gradient(80% 80% at 100% 0%, black, transparent 80%)",
+            }}
           >
-            {title.trim() || "Your event title"}
-          </p>
-          <div className="mt-6 flex items-center gap-5">
-            <div className="rounded-2xl bg-paper p-2">
-              <QRCodeSVG
-                value={`https://askboard.example/join/${code}`}
-                size={108}
-                level="L"
-                marginSize={0}
-                bgColor="#EFF3F1"
-                fgColor="#22333B"
-              />
-            </div>
-            <div>
-              <p className="text-sm text-paper/70">Sample join code</p>
-              <p className="font-display text-3xl font-semibold tracking-[0.18em] text-sand">
-                {code}
-              </p>
-            </div>
+            <HexGrid id="create-hex" size={26} />
           </div>
-          <p className="mt-6 text-sm text-paper/75">
-            Your real code and QR code appear as soon as you create the session.
-          </p>
+          <div className="relative">
+            <p className="font-mono text-xs text-paper/65">Preview</p>
+            <p
+              className={`mt-3 min-h-[3.4rem] break-words font-display text-4xl leading-[1.05] transition-opacity duration-300 ${
+                title.trim() ? "opacity-100" : "opacity-50"
+              }`}
+            >
+              {title.trim() || "Your event title"}
+            </p>
+            <div className="mt-8 flex items-center gap-5">
+              <div className="rounded-2xl bg-paper p-2.5">
+                <QRCodeSVG
+                  value={`https://hexa-askboard.example/join/${code}`}
+                  size={108}
+                  level="L"
+                  marginSize={0}
+                  bgColor="#EFF3F1"
+                  fgColor="#22333B"
+                />
+              </div>
+              <div>
+                <p className="text-sm text-paper/70">Sample join code</p>
+                <p className="mt-1 font-mono text-3xl font-semibold tracking-[0.2em] text-sand">{code}</p>
+              </div>
+            </div>
+            <p className="mt-8 text-sm text-paper/75">
+              Your real code and QR code appear as soon as you create the session.
+            </p>
+          </div>
         </div>
       </div>
     </main>

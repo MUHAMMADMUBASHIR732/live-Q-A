@@ -5,7 +5,7 @@ import AudienceView from "@/components/AudienceView";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Join the Q&A | Askboard" };
+export const metadata = { title: "Join the Q&A | Hexa AskBoard" };
 
 export default async function JoinPage({ params }) {
   const { code } = await params;

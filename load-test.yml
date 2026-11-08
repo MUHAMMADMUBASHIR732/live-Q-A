@@ -1,0 +1,15 @@
+# Run with: npx artillery run load-test.yml
+# Create a session first and put its join code below.
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 30
+      arrivalRate: 10
+scenarios:
+  - flow:
+      - post:
+          url: "/api/questions"
+          json:
+            joinCode: "ABC123"
+            text: "Load test question"
+            voterToken: "{{ $randomString() }}"

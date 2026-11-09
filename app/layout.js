@@ -1,39 +1,33 @@
-import { Instrument_Serif, Instrument_Sans, JetBrains_Mono } from "next/font/google";
+import { Familjen_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-const serif = Instrument_Serif({
+// Two fonts only, to keep the page light: one grotesque for everything, one mono for codes.
+const sans = Familjen_Grotesk({
   subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-instrument-serif",
+  variable: "--font-grotesk",
   display: "swap",
 });
 
-const sans = Instrument_Sans({
+const mono = IBM_Plex_Mono({
   subsets: ["latin"],
-  variable: "--font-instrument-sans",
-  display: "swap",
-});
-
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains",
+  weight: ["400", "500"],
+  variable: "--font-plex-mono",
   display: "swap",
 });
 
 export const metadata = {
-  title: "Hexa AskBoard: live Q&A with private replies",
+  title: "Hexa AskBoard: live Q&A for talks, classes and meetings",
   description:
-    "Your audience scans a QR code, asks questions, and upvotes the best ones. Reply to anyone privately, with files. AI hides spam and groups similar questions.",
+    "People scan a code, ask questions and vote. You see the best ones first and can reply to anyone privately, even with a file.",
 };
 
 export const viewport = {
-  themeColor: "#EFF3F1",
+  themeColor: "#E8E2D3",
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${serif.variable} ${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body className="min-h-dvh">{children}</body>
     </html>
   );

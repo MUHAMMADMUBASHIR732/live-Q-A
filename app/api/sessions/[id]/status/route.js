@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/pusher-server";
 
@@ -11,13 +11,15 @@ export async function PATCH(request, { params }) {
   if (!["open", "closed"].includes(status)) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
-
-  const session = await db.session.findUnique({ where: { id } });
-  if (!session || !presenterToken || session.presenterToken !== presenterToken) {
+  if (typeof presenterToken !== "string" || !presenterToken) {
     return NextResponse.json({ error: "Not allowed" }, { status: 403 });
   }
 
-  await db.session.update({ where: { id }, data: { status } });
-  await broadcast(id, "session:status", { status });
+  const result = await db.session.updateMany({ where: { id, presenterToken }, data: { status } });
+  if (result.count === 0) {
+    return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+  }
+
+  after(() => broadcast(id, "session:status", { status }));
   return NextResponse.json({ status });
 }

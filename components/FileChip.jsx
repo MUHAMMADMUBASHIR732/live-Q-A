@@ -25,10 +25,10 @@ export default function FileChip({ file, tokens, dark = false }) {
         type="button"
         onClick={handleDownload}
         disabled={state === "loading"}
-        className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+        className={`shrink-0 border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
           dark
-            ? "border-paper/30 hover:bg-paper hover:text-ink"
-            : "border-ink/30 hover:bg-ink hover:text-paper"
+            ? "border-paper/60 hover:bg-paper hover:text-ink"
+            : "border-ink hover:bg-ink hover:text-paper"
         }`}
       >
         {state === "loading" ? "Preparing..." : state === "error" ? "Failed, retry" : "Download"}

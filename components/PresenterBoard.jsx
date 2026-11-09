@@ -6,24 +6,21 @@ import { QRCodeSVG } from "qrcode.react";
 import Logo from "@/components/Logo";
 import Button from "@/components/Button";
 import LiveDot from "@/components/LiveDot";
-import HexIcon from "@/components/HexIcon";
-import HexGrid from "@/components/HexGrid";
-import AnimatedNumber from "@/components/AnimatedNumber";
 import ReplyDrawer from "@/components/ReplyDrawer";
-import { useLiveQuestions } from "@/hooks/useLiveQuestions";
+import { useRoom } from "@/hooks/useRoom";
 import { useFlip } from "@/hooks/useFlip";
 import { useFreshIds } from "@/hooks/useFreshIds";
 import { sortQuestions } from "@/lib/sort";
 
 const OTHER = "Other questions";
-const initial = (name) => (name ? name.trim()[0].toUpperCase() : "?");
 
-export default function PresenterBoard({ session, initialQuestions }) {
-  const { questions, closed, setClosed, upsert } = useLiveQuestions(
-    session.id,
-    initialQuestions,
-    session.status === "closed"
-  );
+const time = (iso) =>
+  new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+export default function PresenterBoard({ id }) {
+  const { session, questions, status, closed, patch, setSessionStatus, seed } = useRoom({
+    sessionId: id,
+  });
   const [token, setToken] = useState(null);
   const [origin, setOrigin] = useState("");
   const [summary, setSummary] = useState("");
@@ -31,24 +28,29 @@ export default function PresenterBoard({ session, initialQuestions }) {
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState(false);
   const [repliesByQuestion, setRepliesByQuestion] = useState({});
-  const [replyTo, setReplyTo] = useState(null); // the question being answered privately
+  const [replyTo, setReplyTo] = useState(null);
   const fresh = useFreshIds(questions);
   const listRef = useFlip(questions);
 
   useEffect(() => {
-    setToken(localStorage.getItem(`presenter:${session.id}`));
+    setToken(localStorage.getItem(`presenter:${id}`));
+    // The session was just created in this browser: show its title and code immediately.
+    try {
+      const saved = sessionStorage.getItem(`session:${id}`);
+      if (saved) seed(JSON.parse(saved));
+    } catch {
+      /* the first load will fill it in */
+    }
     // Use the configured public address, unless it is localhost (phones cannot open that).
     const configured = process.env.NEXT_PUBLIC_APP_URL;
-    setOrigin(
-      configured && !configured.includes("localhost") ? configured : window.location.origin
-    );
-  }, [session.id]);
+    setOrigin(configured && !configured.includes("localhost") ? configured : window.location.origin);
+  }, [id, seed]);
 
   // The presenter's own record of private replies already sent.
   const loadReplies = useCallback(
     async (presenterToken) => {
       try {
-        const res = await fetch(`/api/sessions/${session.id}/replies`, {
+        const res = await fetch(`/api/sessions/${id}/replies`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ presenterToken }),
@@ -62,7 +64,7 @@ export default function PresenterBoard({ session, initialQuestions }) {
         /* the next load will catch up */
       }
     },
-    [session.id]
+    [id]
   );
 
   useEffect(() => {
@@ -70,11 +72,11 @@ export default function PresenterBoard({ session, initialQuestions }) {
   }, [token, loadReplies]);
 
   const isPresenter = Boolean(token);
-  const joinUrl = `${origin}/join/${session.joinCode}`;
+  const joinUrl = session ? `${origin}/join/${session.joinCode}` : "";
   const totalVotes = questions.reduce((sum, q) => sum + q.upvoteCount, 0);
   const repliedCount = Object.keys(repliesByQuestion).length;
 
-  // Group by AI topic. Topics with the most votes come first.
+  // Group by topic. Topics with the most votes come first.
   const groups = useMemo(() => {
     const sorted = sortQuestions(questions);
     const hasTopics = sorted.some((q) => q.clusterLabel);
@@ -90,34 +92,37 @@ export default function PresenterBoard({ session, initialQuestions }) {
     );
   }, [questions]);
 
-  async function setStatus(id, status) {
+  async function setStatus(qid, next) {
     setMessage("");
-    const res = await fetch(`/api/questions/${id}`, {
+    patch({ id: qid, status: next }); // change it on screen straight away
+    const res = await fetch(`/api/questions/${qid}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, presenterToken: token }),
+      body: JSON.stringify({ status: next, presenterToken: token, sessionId: id }),
     });
-    if (res.ok) upsert(await res.json());
-    else setMessage("That action was not allowed. Use the browser where you created the session.");
+    if (!res.ok) setMessage("That action was not allowed. Use the browser where you created the session.");
   }
 
   async function toggleSession() {
     setMessage("");
     const next = closed ? "open" : "closed";
-    const res = await fetch(`/api/sessions/${session.id}/status`, {
+    setSessionStatus(next);
+    const res = await fetch(`/api/sessions/${id}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: next, presenterToken: token }),
     });
-    if (res.ok) setClosed(next === "closed");
-    else setMessage("That action was not allowed. Use the browser where you created the session.");
+    if (!res.ok) {
+      setSessionStatus(closed ? "closed" : "open");
+      setMessage("That action was not allowed. Use the browser where you created the session.");
+    }
   }
 
   async function makeSummary() {
     setBusy(true);
     setMessage("");
     try {
-      const res = await fetch(`/api/sessions/${session.id}/summary`, {
+      const res = await fetch(`/api/sessions/${id}/summary`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ presenterToken: token }),
@@ -141,38 +146,47 @@ export default function PresenterBoard({ session, initialQuestions }) {
     }
   }
 
-  function handleSent(reply, updatedQuestion) {
+  function handleSent(reply, patchObj) {
     setRepliesByQuestion((prev) => ({
       ...prev,
       [reply.questionId]: [reply, ...(prev[reply.questionId] || [])],
     }));
-    if (updatedQuestion) upsert(updatedQuestion);
+    if (patchObj) patch(patchObj);
   }
 
   const closeReply = useCallback(() => setReplyTo(null), []);
   const activeQuestion = replyTo ? questions.find((q) => q.id === replyTo) || null : null;
 
-  return (
-    <main className="relative min-h-dvh overflow-hidden bg-ink text-paper">
-      {/* A faint hexagon lattice fades in from the top right. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-[560px] text-paper/[0.07]"
-        style={{
-          maskImage: "radial-gradient(60% 100% at 85% 0%, black, transparent 75%)",
-          WebkitMaskImage: "radial-gradient(60% 100% at 85% 0%, black, transparent 75%)",
-        }}
-      >
-        <HexGrid id="presenter-hex" size={30} />
-      </div>
+  if (status === "missing") {
+    return (
+      <main className="min-h-dvh bg-ink px-5 py-10 text-paper">
+        <div className="mx-auto max-w-xl">
+          <Link href="/" aria-label="Hexa AskBoard home">
+            <Logo />
+          </Link>
+          <h1 className="mt-10 text-5xl font-bold leading-[0.95] tracking-tighter">
+            This session does not exist
+          </h1>
+          <p className="mt-4 text-lg text-paper/85">It may have been deleted, or the link is wrong.</p>
+          <div className="mt-6">
+            <Button href="/create" variant="sand">
+              Start a new session
+            </Button>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
-      <div className="relative mx-auto max-w-6xl px-5 py-6 sm:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-4">
+  return (
+    <main className="min-h-dvh bg-ink text-paper">
+      <header className="border-b border-paper/25">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8">
           <div className="flex items-center gap-5">
             <Link href="/" aria-label="Hexa AskBoard home">
-              <Logo onDark className="scale-90 origin-left" />
+              <Logo />
             </Link>
-            <p className="flex items-center gap-2 text-sm text-paper/80">
+            <p className="flex items-center gap-2 text-sm text-paper/85">
               <LiveDot closed={closed} onDark />
               {closed ? "Session ended" : "Live"}
             </p>
@@ -187,153 +201,132 @@ export default function PresenterBoard({ session, initialQuestions }) {
               </Button>
             </div>
           )}
-        </header>
+        </div>
+      </header>
 
-        <div className="mt-9 grid gap-8 lg:grid-cols-[310px_1fr]">
-          <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-            <div className="rounded-[1.75rem] bg-paper p-5 text-ink shadow-[0_40px_80px_-40px_rgba(0,0,0,0.8)] transition-transform duration-500 hover:-rotate-1 hover:scale-[1.02]">
-              <div className="mx-auto w-fit rounded-xl bg-paper">
-                {origin && (
-                  <QRCodeSVG
-                    value={joinUrl}
-                    size={210}
-                    level="M"
-                    marginSize={1}
-                    bgColor="#EFF3F1"
-                    fgColor="#22333B"
-                  />
-                )}
-              </div>
-              <p className="mt-4 text-center text-sm text-ink/75">Scan to ask a question</p>
-              <p className="mt-1 text-center font-mono text-3xl font-semibold tracking-[0.2em]">
-                {session.joinCode}
-              </p>
-              <p className="mt-2 break-all text-center font-mono text-xs text-ink/65">{joinUrl}</p>
+      <div className="mx-auto grid max-w-6xl lg:grid-cols-[300px_1fr]">
+        <aside className="border-b border-paper/25 p-5 sm:px-8 lg:border-b-0 lg:border-r lg:py-8 lg:pr-6">
+          <div className="border-2 border-paper bg-paper p-4 text-ink">
+            <div className="mx-auto w-fit">
+              {session && origin ? (
+                <QRCodeSVG
+                  value={joinUrl}
+                  size={216}
+                  level="M"
+                  marginSize={0}
+                  bgColor="#E8E2D3"
+                  fgColor="#22333B"
+                />
+              ) : (
+                <div className="flex h-[216px] w-[216px] items-center justify-center font-mono text-sm text-ink/70">
+                  Loading...
+                </div>
+              )}
             </div>
-
-            <dl className="grid grid-cols-3 gap-3">
-              {[
-                ["Questions", questions.length],
-                ["Votes", totalVotes],
-                ["Replied", repliedCount],
-              ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-2xl border border-paper/10 bg-paper/[0.05] p-3.5 transition-colors duration-300 hover:bg-paper/[0.1]"
-                >
-                  <dd className="font-display text-4xl leading-none">
-                    <AnimatedNumber value={value} />
-                  </dd>
-                  <dt className="mt-1 text-xs text-paper/70">{label}</dt>
-                </div>
-              ))}
-            </dl>
-
-            {!isPresenter && (
-              <p className="rounded-2xl border border-paper/10 bg-paper/[0.05] p-4 text-sm text-paper/80">
-                You are viewing this board. Moderation and private replies are available in the
-                browser where the session was created.
-              </p>
-            )}
-          </aside>
-
-          <section aria-live="polite">
-            <h1 className="font-display text-5xl leading-[1.02] sm:text-6xl">{session.title}</h1>
-
-            {closed && (
-              <p role="status" className="arrive mt-4 rounded-2xl bg-sand px-4 py-3 font-medium text-ink">
-                This session has ended. New questions and votes are closed.
-              </p>
-            )}
-            <p role="alert" className="mt-3 min-h-5 text-sm font-medium text-sand">
-              {message}
+            <p className="mt-4 text-center text-sm">Scan to ask a question</p>
+            <p className="mt-1 text-center font-mono text-3xl font-medium tracking-[0.2em]">
+              {session ? session.joinCode : "------"}
             </p>
+            <p className="mt-2 break-all text-center font-mono text-xs text-ink/70">{joinUrl}</p>
+          </div>
 
-            {summary && (
-              <div className="arrive mt-4 rounded-[1.5rem] border border-sage/40 bg-sage/30 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="font-display text-3xl">Summary</h2>
-                  <div className="flex gap-2">
-                    <Button variant="ghostDark" size="sm" onClick={copySummary}>
-                      {copied ? "Copied" : "Copy"}
-                    </Button>
-                    <Button variant="ghostDark" size="sm" onClick={() => setSummary("")}>
-                      Close
-                    </Button>
-                  </div>
-                </div>
-                <pre className="mt-3 whitespace-pre-wrap font-sans text-base leading-relaxed">{summary}</pre>
+          <dl className="mt-5 border-t border-paper/25 font-mono text-sm">
+            {[
+              ["Questions", questions.length],
+              ["Votes", totalVotes],
+              ["Replied privately", repliedCount],
+            ].map(([label, value]) => (
+              <div key={label} className="flex items-baseline justify-between border-b border-paper/25 py-2.5">
+                <dt className="text-paper/80">{label}</dt>
+                <dd className="text-xl font-medium">{value}</dd>
               </div>
-            )}
+            ))}
+          </dl>
 
-            {questions.length === 0 ? (
-              <div className="mt-12 flex items-center gap-4">
-                <div className="flex items-center gap-1.5 rounded-full bg-paper/[0.08] px-5 py-3" aria-hidden="true">
-                  {[0, 1, 2].map((i) => (
-                    <span
-                      key={i}
-                      className="h-2.5 w-2.5 animate-bounce rounded-full bg-sand"
-                      style={{ animationDelay: `${i * 150}ms` }}
-                    />
-                  ))}
+          {!isPresenter && (
+            <p className="mt-5 border border-paper/35 p-3 text-sm text-paper/85">
+              You are viewing this board. Moderation and private replies are available in the browser
+              where the session was created.
+            </p>
+          )}
+        </aside>
+
+        <section aria-live="polite" className="p-5 sm:px-8 lg:py-8">
+          <h1 className="min-h-[3.5rem] text-5xl font-bold leading-[0.95] tracking-tighter sm:text-6xl">
+            {session ? session.title : ""}
+          </h1>
+
+          {closed && (
+            <p role="status" className="mt-4 border-2 border-paper bg-sand p-3 font-semibold text-ink">
+              This session has ended. New questions and votes are closed.
+            </p>
+          )}
+          <p role="alert" className="mt-3 min-h-5 text-sm font-semibold text-sand">
+            {message}
+          </p>
+
+          {summary && (
+            <div className="mt-4 border-2 border-paper bg-sage/35 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-2xl font-bold tracking-tight">Summary</h2>
+                <div className="flex gap-2">
+                  <Button variant="ghostDark" size="sm" onClick={copySummary}>
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+                  <Button variant="ghostDark" size="sm" onClick={() => setSummary("")}>
+                    Close
+                  </Button>
                 </div>
-                <p className="max-w-[34ch] font-display text-3xl text-paper/85">
-                  Waiting for the first question
-                </p>
               </div>
-            ) : (
-              <div ref={listRef} className="relative">
-                {groups.map(([label, items]) => (
-                  <div key={label} className="mt-9">
-                    <h2 className="flex items-center gap-3 font-display text-3xl text-sand">
-                      <svg width="14" height="12" viewBox="0 0 28 24" aria-hidden="true">
-                        <polygon points="7,0 21,0 28,12 21,24 7,24 0,12" fill="currentColor" />
-                      </svg>
-                      {label}
-                    </h2>
-                    <ul className="mt-3 space-y-3">
-                      {items.map((q) => {
-                        const sentReplies = repliesByQuestion[q.id] || [];
-                        return (
-                          <li
-                            key={q.id}
-                            data-flip-id={q.id}
-                            className={`rounded-[1.5rem] border p-4 transition-colors duration-300 sm:p-5 ${
-                              q.status === "pinned"
-                                ? "border-sand bg-sand/20"
-                                : "border-paper/10 bg-paper/[0.06] hover:bg-paper/[0.11]"
-                            } ${fresh.has(q.id) ? "arrive" : ""}`}
-                          >
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex min-w-0 gap-3">
-                                <HexIcon size={38} tone="dark">
-                                  <span className="font-mono text-xs font-semibold">{initial(q.authorName)}</span>
-                                </HexIcon>
-                                <div className="min-w-0">
-                                  <p className="text-sm text-paper/70">{q.authorName || "Anonymous"}</p>
-                                  <p
-                                    className={`break-words text-xl leading-snug sm:text-2xl ${
-                                      q.status === "answered" ? "text-paper/55 line-through" : ""
-                                    }`}
-                                  >
-                                    {q.text}
-                                  </p>
-                                </div>
-                              </div>
-                              <span
-                                className="shrink-0 rounded-full bg-paper px-3.5 py-1.5 font-mono font-semibold text-ink"
-                                aria-label={`${q.upvoteCount} votes`}
-                              >
-                                <span key={q.upvoteCount} className="pop">
-                                  {q.upvoteCount}
-                                </span>
-                              </span>
-                            </div>
+              <pre className="mt-3 whitespace-pre-wrap font-sans text-base leading-relaxed">{summary}</pre>
+            </div>
+          )}
+
+          {status === "loading" && questions.length === 0 ? (
+            <p className="mt-10 font-mono text-sm text-paper/75">Loading questions...</p>
+          ) : questions.length === 0 ? (
+            <div className="mt-10">
+              <p className="text-3xl font-bold tracking-tight">Waiting for the first question</p>
+              <p className="mt-1 text-paper/80">Show the code on screen and ask the room to scan it.</p>
+            </div>
+          ) : (
+            <div ref={listRef} className="relative">
+              {groups.map(([label, items]) => (
+                <div key={label} className="mt-8">
+                  <h2 className="flex items-baseline justify-between border-b-2 border-sand pb-1 font-mono text-sm text-sand">
+                    <span>{label}</span>
+                    <span>{items.length}</span>
+                  </h2>
+                  <ul>
+                    {items.map((q) => {
+                      const sent = repliesByQuestion[q.id] || [];
+                      return (
+                        <li
+                          key={q.id}
+                          data-flip-id={q.id}
+                          className={`grid grid-cols-[3.5rem_1fr] gap-4 border-b border-paper/25 py-4 ${
+                            q.status === "pinned" ? "-mx-3 border-l-4 border-l-sand bg-paper/[0.07] px-3" : ""
+                          } ${fresh.has(q.id) ? "arrive" : ""}`}
+                        >
+                          <p className="text-right font-mono text-3xl font-medium leading-none">
+                            {q.upvoteCount}
+                          </p>
+                          <div className="min-w-0">
+                            <p
+                              className={`break-words text-xl leading-snug sm:text-2xl ${
+                                q.status === "answered" ? "text-paper/55 line-through" : ""
+                              }`}
+                            >
+                              {q.text}
+                            </p>
+                            <p className="mt-1 font-mono text-xs text-paper/70">
+                              {q.authorName || "Anonymous"} at {time(q.createdAt)}
+                            </p>
 
                             {isPresenter && (
-                              <div className="mt-4 flex flex-wrap items-center gap-2">
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
                                 <Button variant="sand" size="sm" onClick={() => setReplyTo(q.id)}>
-                                  {sentReplies.length > 0 ? "Reply again" : "Reply privately"}
+                                  {sent.length > 0 ? "Reply again" : "Reply privately"}
                                 </Button>
                                 <Button
                                   variant="ghostDark"
@@ -352,31 +345,27 @@ export default function PresenterBoard({ session, initialQuestions }) {
                                 <Button variant="ghostDark" size="sm" onClick={() => setStatus(q.id, "hidden")}>
                                   Hide
                                 </Button>
-                                {sentReplies.length > 0 && (
+                                {sent.length > 0 && (
                                   <button
                                     type="button"
                                     onClick={() => setReplyTo(q.id)}
-                                    className="ml-auto flex items-center gap-1.5 rounded-full bg-sage/35 px-3 py-1 text-sm transition-colors hover:bg-sage/55"
+                                    className="font-mono text-xs underline underline-offset-4 hover:text-sand"
                                   >
-                                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                                      <rect x="3" y="7" width="10" height="7" rx="2" />
-                                      <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" strokeLinecap="round" />
-                                    </svg>
-                                    Replied privately ({sentReplies.length})
+                                    Replied privately ({sent.length})
                                   </button>
                                 )}
                               </div>
                             )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
 
       {isPresenter && (

@@ -4,36 +4,9 @@ import { broadcast } from "@/lib/pusher-server";
 import { questionLimiter, ipLimiter, getIp } from "@/lib/ratelimit";
 import { publicQuestion } from "@/lib/serialize";
 import { processQuestion } from "@/lib/ai";
+import { getCachedSession, cacheSession } from "@/lib/sessionCache";
 
-export const dynamic = "force-dynamic";
 export const maxDuration = 30; // gives the background AI work time to finish
-
-// Used by browsers to sync: on connect, after a reconnect, and when polling.
-export async function GET(request) {
-  const sessionId = new URL(request.url).searchParams.get("sessionId");
-  if (!sessionId) {
-    return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
-  }
-
-  const session = await db.session.findUnique({
-    where: { id: sessionId },
-    select: { status: true },
-  });
-  if (!session) {
-    return NextResponse.json({ error: "Session not found" }, { status: 404 });
-  }
-
-  const questions = await db.question.findMany({
-    where: { sessionId, status: { not: "hidden" } },
-    include: { cluster: true },
-    orderBy: { createdAt: "desc" },
-    take: 500,
-  });
-  return NextResponse.json({
-    status: session.status,
-    questions: questions.map(publicQuestion),
-  });
-}
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
@@ -53,9 +26,16 @@ export async function POST(request) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  const session = await db.session.findUnique({
-    where: { joinCode: joinCode.toUpperCase() },
-  });
+  // Usually answered from memory, so most questions cost a single database write.
+  const code = joinCode.toUpperCase();
+  let session = getCachedSession(code);
+  if (!session) {
+    session = await db.session.findUnique({
+      where: { joinCode: code },
+      select: { id: true, status: true },
+    });
+    if (session) cacheSession(code, session);
+  }
   if (!session) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
@@ -70,14 +50,15 @@ export async function POST(request) {
       authorName: name || null,
       authorToken: String(voterToken),
     },
-    include: { cluster: true },
   });
 
   const payload = publicQuestion(question);
-  await broadcast(session.id, "question:new", payload);
 
-  // Runs after the response is sent. Never block the user on AI.
-  after(() => processQuestion(question.id, session.id));
+  // Answer the person right now. Telling everyone else, and the AI work, happen after.
+  after(async () => {
+    await broadcast(session.id, "question:new", payload);
+    await processQuestion(question.id, session.id);
+  });
 
   return NextResponse.json(payload, { status: 201 });
 }

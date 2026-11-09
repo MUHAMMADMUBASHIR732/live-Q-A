@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Button from "@/components/Button";
-import HexIcon from "@/components/HexIcon";
 import FileBadge from "@/components/FileBadge";
 import FileChip from "@/components/FileChip";
 import { MAX_FILES, MAX_TOTAL_BYTES, MAX_TEXT, formatBytes } from "@/lib/files";
@@ -36,7 +35,7 @@ export default function ReplyDrawer({ open, question, presenterToken, previous, 
     setError("");
     setSent(false);
     setMarkAnswered(false);
-    const t = setTimeout(() => textRef.current?.focus(), 250);
+    const t = setTimeout(() => textRef.current?.focus(), 150);
     return () => clearTimeout(t);
   }, [open, question?.id]);
 
@@ -106,25 +105,23 @@ export default function ReplyDrawer({ open, question, presenterToken, previous, 
       if (!res.ok) throw new Error(data.error || "The reply could not be sent.");
 
       setSent(true);
-      onSent(data.reply, data.question);
+      onSent(data.reply, data.patch);
     } catch (err) {
       setError(err.message || "The reply could not be sent. Check your connection.");
     }
     setSending(false);
   }
 
-  const who = question?.authorName || "the person who asked";
+  const asker = question?.authorName || "the person who asked";
 
   return (
     <div
-      className={`fixed inset-0 z-50 transition-[visibility] ${open ? "visible" : "invisible delay-300"}`}
+      className={`fixed inset-0 z-50 transition-[visibility] ${open ? "visible" : "invisible delay-200"}`}
       aria-hidden={!open}
     >
       <div
         onClick={onClose}
-        className={`absolute inset-0 bg-ink/60 backdrop-blur-sm transition-opacity duration-300 ${
-          open ? "opacity-100" : "opacity-0"
-        }`}
+        className={`absolute inset-0 bg-ink/60 transition-opacity duration-200 ${open ? "opacity-100" : "opacity-0"}`}
       />
 
       <div
@@ -132,63 +129,49 @@ export default function ReplyDrawer({ open, question, presenterToken, previous, 
         aria-modal="true"
         aria-labelledby="reply-title"
         onPaste={onPaste}
-        className={`absolute inset-y-0 right-0 flex w-full max-w-lg flex-col overflow-y-auto bg-paper text-ink shadow-[-30px_0_80px_-30px_rgba(34,51,59,0.7)] transition-transform duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)] ${
+        className={`absolute inset-y-0 right-0 flex w-full max-w-lg flex-col overflow-y-auto border-l-2 border-ink bg-paper text-ink transition-transform duration-200 ease-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-ink/10 px-6 py-5">
-          <div className="flex items-center gap-3">
-            <HexIcon size={44} tone="sand">
-              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                <rect x="3" y="7" width="10" height="7" rx="2" />
-                <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" strokeLinecap="round" />
-              </svg>
-            </HexIcon>
-            <div>
-              <h2 id="reply-title" className="font-display text-3xl leading-none">
-                Private reply
-              </h2>
-              <p className="mt-1 text-sm text-ink/70">
-                Only {question?.authorName || "the asker"} will see this.
-              </p>
-            </div>
+        <div className="flex items-start justify-between gap-4 border-b-2 border-ink px-5 py-4">
+          <div>
+            <h2 id="reply-title" className="text-2xl font-bold tracking-tight">
+              Private reply
+            </h2>
+            <p className="text-sm text-ink/80">
+              Only {question?.authorName || "the person who asked"} will see this.
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-full p-2 text-ink/70 transition-colors hover:bg-ink/10 hover:text-ink"
-          >
-            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-              <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          </button>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            Close
+          </Button>
         </div>
 
-        <div className="flex-1 space-y-5 px-6 py-5">
+        <div className="flex-1 space-y-5 px-5 py-5">
           {question && (
-            <blockquote className="rounded-2xl border border-ink/10 bg-ink/[0.04] p-4">
-              <p className="text-sm text-ink/65">{question.authorName || "Anonymous"} asked</p>
+            <blockquote className="border-l-4 border-pine bg-sheet px-4 py-3">
+              <p className="font-mono text-xs text-ink/70">{question.authorName || "Anonymous"} asked</p>
               <p className="mt-1 text-lg leading-snug">{question.text}</p>
             </blockquote>
           )}
 
           {sent ? (
-            <div className="arrive rounded-2xl border border-sage/60 bg-sage/15 p-6 text-center">
-              <div className="flex justify-center">
-                <HexIcon size={56} tone="ink">
-                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <path d="M5 11.5l4 4 8-9" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </HexIcon>
-              </div>
-              <h3 className="mt-3 font-display text-3xl">Delivered privately</h3>
-              <p className="mx-auto mt-1 max-w-[34ch] text-ink/75">
+            <div className="border-2 border-ink bg-sage/30 p-5">
+              <h3 className="text-2xl font-bold tracking-tight">Delivered privately</h3>
+              <p className="mt-1">
                 {question?.authorName || "The person who asked"} can see it on the device they used.
                 Nobody else in the room can.
               </p>
-              <div className="mt-5 flex justify-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => { setSent(false); setText(""); setFiles([]); }}>
+              <div className="mt-4 flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setSent(false);
+                    setText("");
+                    setFiles([]);
+                  }}
+                >
                   Send another
                 </Button>
                 <Button size="sm" onClick={onClose}>
@@ -199,8 +182,8 @@ export default function ReplyDrawer({ open, question, presenterToken, previous, 
           ) : (
             <form onSubmit={send} className="space-y-4">
               <div>
-                <label htmlFor="reply-text" className="block font-medium">
-                  Your reply to {who}
+                <label htmlFor="reply-text" className="block font-semibold">
+                  Your reply to {asker}
                 </label>
                 <textarea
                   id="reply-text"
@@ -210,9 +193,9 @@ export default function ReplyDrawer({ open, question, presenterToken, previous, 
                   maxLength={MAX_TEXT}
                   rows={5}
                   placeholder="Write your answer. You can also paste a file or screenshot here."
-                  className="mt-2 w-full resize-none rounded-2xl border border-ink/30 bg-paper p-4 text-lg leading-snug transition-[border-color,box-shadow] placeholder:text-ink/45 focus:border-ink focus:shadow-[0_0_0_4px_rgba(94,139,126,0.25)]"
+                  className="mt-2 w-full resize-none rounded-[3px] border-2 border-ink bg-sheet p-3 text-lg leading-snug placeholder:text-ink/55"
                 />
-                <p className="mt-1 text-right font-mono text-xs text-ink/60">
+                <p className="mt-1 text-right font-mono text-xs text-ink/70">
                   {text.length}/{MAX_TEXT}
                 </p>
               </div>
@@ -228,16 +211,16 @@ export default function ReplyDrawer({ open, question, presenterToken, previous, 
                   setDragging(false);
                   addFiles(e.dataTransfer.files);
                 }}
-                className={`rounded-2xl border-2 border-dashed p-5 text-center transition-colors duration-300 ${
-                  dragging ? "border-sage bg-sage/20" : "border-ink/25 bg-ink/[0.03] hover:border-ink/45"
+                className={`border-2 border-dashed p-5 text-center transition-colors ${
+                  dragging ? "border-pine bg-sage/30" : "border-ink/50 bg-sheet"
                 }`}
               >
-                <p className="font-medium">Drop files here, or paste one</p>
-                <p className="mt-1 text-sm text-ink/70">
+                <p className="font-semibold">Drop files here, or paste one</p>
+                <p className="mt-1 text-sm text-ink/80">
                   Any file type. Up to {MAX_FILES} files, {formatBytes(MAX_TOTAL_BYTES)} in total.
                 </p>
                 <div className="mt-3">
-                  <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => inputRef.current?.click()}>
                     Choose files
                   </Button>
                 </div>
@@ -256,13 +239,13 @@ export default function ReplyDrawer({ open, question, presenterToken, previous, 
               {files.length > 0 && (
                 <ul className="space-y-2">
                   {files.map((f, i) => (
-                    <li key={`${f.name}-${f.size}-${i}`} className="arrive">
+                    <li key={`${f.name}-${f.size}-${i}`}>
                       <FileBadge name={f.name} size={f.size} mimeType={f.type}>
                         <button
                           type="button"
                           onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
                           aria-label={`Remove ${f.name}`}
-                          className="shrink-0 rounded-full border border-ink/30 px-3 py-1 text-sm transition-colors hover:bg-ink hover:text-paper"
+                          className="shrink-0 border border-ink px-3 py-1 text-sm transition-colors hover:bg-ink hover:text-paper"
                         >
                           Remove
                         </button>
@@ -277,20 +260,20 @@ export default function ReplyDrawer({ open, question, presenterToken, previous, 
                   type="checkbox"
                   checked={markAnswered}
                   onChange={(e) => setMarkAnswered(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-[#22333B]"
+                  className="mt-1 h-4 w-4 accent-[#35584d]"
                 />
                 <span>
                   Also mark this question as answered on the shared board.
-                  <span className="block text-ink/65">Everyone sees the label. Nobody sees your reply.</span>
+                  <span className="block text-ink/75">Everyone sees the label. Nobody sees your reply.</span>
                 </span>
               </label>
 
-              <p role="alert" className="min-h-5 text-sm font-medium">
+              <p role="alert" className="min-h-5 text-sm font-semibold">
                 {error}
               </p>
 
               <div className="flex items-center justify-end gap-2">
-                <Button type="button" variant="outline" onClick={onClose}>
+                <Button type="button" variant="ghost" onClick={onClose}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={sending}>
@@ -301,12 +284,12 @@ export default function ReplyDrawer({ open, question, presenterToken, previous, 
           )}
 
           {previous && previous.length > 0 && (
-            <div className="border-t border-ink/10 pt-5">
-              <h3 className="font-display text-2xl">Already sent</h3>
+            <div className="border-t-2 border-ink pt-5">
+              <h3 className="text-lg font-bold tracking-tight">Already sent</h3>
               <ul className="mt-3 space-y-3">
                 {previous.map((r) => (
-                  <li key={r.id} className="rounded-2xl border border-ink/10 bg-ink/[0.03] p-4">
-                    <p className="font-mono text-xs text-ink/60">{when(r.createdAt)}</p>
+                  <li key={r.id} className="border border-ink/50 bg-sheet p-3">
+                    <p className="font-mono text-xs text-ink/70">{when(r.createdAt)}</p>
                     {r.text && <p className="mt-1 whitespace-pre-wrap break-words">{r.text}</p>}
                     {r.files.length > 0 && (
                       <div className="mt-2 space-y-2">

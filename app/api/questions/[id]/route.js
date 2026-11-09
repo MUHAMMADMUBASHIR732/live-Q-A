@@ -1,34 +1,30 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/pusher-server";
-import { publicQuestion } from "@/lib/serialize";
 
 const ALLOWED = ["visible", "hidden", "answered", "pinned"];
 
-// Presenter only: hide, pin, or mark a question answered.
+// Presenter only. The ownership check and the change happen in one database query.
 export async function PATCH(request, { params }) {
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
-  const { status, presenterToken } = body;
+  const { status, presenterToken, sessionId } = body;
 
   if (!ALLOWED.includes(status)) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
-
-  const existing = await db.question.findUnique({
-    where: { id },
-    include: { session: true },
-  });
-  if (!existing || !presenterToken || existing.session.presenterToken !== presenterToken) {
+  if (typeof presenterToken !== "string" || !presenterToken || typeof sessionId !== "string") {
     return NextResponse.json({ error: "Not allowed" }, { status: 403 });
   }
 
-  const updated = await db.question.update({
-    where: { id },
+  const result = await db.question.updateMany({
+    where: { id, sessionId, session: { presenterToken } },
     data: { status },
-    include: { cluster: true },
   });
-  const payload = publicQuestion(updated);
-  await broadcast(updated.sessionId, "question:updated", payload);
-  return NextResponse.json(payload);
+  if (result.count === 0) {
+    return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+  }
+
+  after(() => broadcast(sessionId, "question:patch", { id, status }));
+  return NextResponse.json({ id, status });
 }

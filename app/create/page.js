@@ -3,31 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { QRCodeSVG } from "qrcode.react";
 import Logo from "@/components/Logo";
 import Button from "@/components/Button";
-import HexGrid from "@/components/HexGrid";
-
-// A tiny stable hash so the preview code changes as you type.
-function previewCode(text) {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let h = 7;
-  for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += alphabet[h % alphabet.length];
-    h = Math.floor(h / alphabet.length) + i * 17 + 3;
-  }
-  return code;
-}
+import Warmup from "@/components/Warmup";
 
 export default function CreatePage() {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const code = previewCode(title.trim() || "Hexa AskBoard");
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -46,6 +30,15 @@ export default function CreatePage() {
 
       // Only this browser holds the presenter token, so only it can moderate and reply.
       localStorage.setItem(`presenter:${data.id}`, data.presenterToken);
+      // Hand the new session to the next page, so it can show the title and QR code at once.
+      try {
+        sessionStorage.setItem(
+          `session:${data.id}`,
+          JSON.stringify({ id: data.id, title: title.trim(), joinCode: data.joinCode, status: "open" })
+        );
+      } catch {
+        /* the board will load it from the server instead */
+      }
       router.push(`/present/${data.id}`);
     } catch (err) {
       setError(err.message || "Could not create the session. Check your connection and try again.");
@@ -54,24 +47,25 @@ export default function CreatePage() {
   }
 
   return (
-    <main className="relative mx-auto flex min-h-dvh max-w-5xl flex-col px-6 py-6">
-      <header>
+    <main className="mx-auto flex min-h-dvh max-w-5xl flex-col px-5 py-4 sm:px-8">
+      <Warmup />
+      <header className="border-b-2 border-ink pb-3">
         <Link href="/" aria-label="Hexa AskBoard home" className="inline-block">
           <Logo />
         </Link>
       </header>
 
-      <div className="grid flex-1 items-center gap-14 pb-16 pt-10 md:grid-cols-2">
+      <div className="grid flex-1 items-start gap-12 py-12 md:grid-cols-[1fr_0.8fr]">
         <div>
-          <h1 className="font-display text-6xl leading-[0.98] sm:text-7xl">Start a session</h1>
-          <p className="mt-4 max-w-[44ch] text-lg text-ink/80">
-            Name your event. You will get a QR code and a join code to show your audience, and
-            you can reply privately to anyone who asks.
+          <h1 className="text-6xl font-bold leading-[0.92] tracking-tighter sm:text-7xl">Start a session</h1>
+          <p className="mt-5 max-w-[44ch] text-lg">
+            Give your event a name. You will get a QR code and a six-character code to show your
+            audience.
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-9 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
             <div>
-              <label htmlFor="title" className="block font-medium">
+              <label htmlFor="title" className="block font-semibold">
                 Event title
               </label>
               <input
@@ -81,63 +75,32 @@ export default function CreatePage() {
                 maxLength={120}
                 placeholder="Product launch Q&A"
                 autoFocus
-                className="mt-2 w-full rounded-2xl border border-ink/30 bg-paper px-4 py-3.5 text-lg transition-[border-color,box-shadow] duration-300 placeholder:text-ink/50 hover:border-ink/60 focus:border-ink focus:shadow-[0_0_0_4px_rgba(94,139,126,0.25)]"
+                className="mt-2 w-full rounded-[3px] border-2 border-ink bg-sheet px-4 py-3 text-lg placeholder:text-ink/55"
               />
             </div>
             <Button type="submit" size="lg" disabled={loading || !title.trim()}>
-              {loading ? "Creating session..." : "Create session"}
+              {loading ? "Creating..." : "Create session"}
             </Button>
-            <p role="alert" className="min-h-6 text-sm font-medium text-ink">
+            <p role="alert" className="min-h-6 text-sm font-semibold">
               {error}
             </p>
           </form>
         </div>
 
-        {/* Live preview: the title and a sample code update as you type. */}
-        <div
-          className="relative overflow-hidden rounded-[2rem] border border-paper/10 bg-ink p-7 text-paper shadow-[0_40px_80px_-40px_rgba(34,51,59,0.9)] transition-transform duration-500 hover:-translate-y-1 hover:rotate-1 sm:p-9"
-          aria-label="Preview of your board"
-        >
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 text-paper/[0.07]"
-            style={{
-              maskImage: "radial-gradient(80% 80% at 100% 0%, black, transparent 80%)",
-              WebkitMaskImage: "radial-gradient(80% 80% at 100% 0%, black, transparent 80%)",
-            }}
-          >
-            <HexGrid id="create-hex" size={26} />
-          </div>
-          <div className="relative">
-            <p className="font-mono text-xs text-paper/65">Preview</p>
-            <p
-              className={`mt-3 min-h-[3.4rem] break-words font-display text-4xl leading-[1.05] transition-opacity duration-300 ${
-                title.trim() ? "opacity-100" : "opacity-50"
-              }`}
-            >
-              {title.trim() || "Your event title"}
-            </p>
-            <div className="mt-8 flex items-center gap-5">
-              <div className="rounded-2xl bg-paper p-2.5">
-                <QRCodeSVG
-                  value={`https://hexa-askboard.example/join/${code}`}
-                  size={108}
-                  level="L"
-                  marginSize={0}
-                  bgColor="#EFF3F1"
-                  fgColor="#22333B"
-                />
-              </div>
-              <div>
-                <p className="text-sm text-paper/70">Sample join code</p>
-                <p className="mt-1 font-mono text-3xl font-semibold tracking-[0.2em] text-sand">{code}</p>
-              </div>
-            </div>
-            <p className="mt-8 text-sm text-paper/75">
-              Your real code and QR code appear as soon as you create the session.
-            </p>
-          </div>
-        </div>
+        <aside className="border-t-2 border-ink pt-4 md:border-l-2 md:border-t-0 md:pl-8 md:pt-0">
+          <h2 className="text-xl font-bold tracking-tight">What happens next</h2>
+          <ul className="mt-3 space-y-3">
+            <li className="border-b border-ink/40 pb-3">
+              Your board opens with a QR code and a join code, ready to show on screen.
+            </li>
+            <li className="border-b border-ink/40 pb-3">
+              People scan the code with their phone camera, or with the scanner on this site.
+            </li>
+            <li>
+              You see questions as they come in, and can reply to anyone privately, even with a file.
+            </li>
+          </ul>
+        </aside>
       </div>
     </main>
   );

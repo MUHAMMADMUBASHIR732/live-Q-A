@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 
-export default function JoinForm() {
+export default function JoinForm({ className = "" }) {
   const router = useRouter();
   const [code, setCode] = useState("");
 
@@ -15,7 +15,7 @@ export default function JoinForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
+    <form onSubmit={handleSubmit} className={`flex items-stretch gap-2 ${className}`}>
       <label htmlFor="join-code" className="sr-only">
         Join code
       </label>
@@ -24,12 +24,12 @@ export default function JoinForm() {
         value={code}
         onChange={(e) => setCode(e.target.value)}
         maxLength={6}
-        placeholder="Join code"
+        placeholder="Six-character code"
         autoComplete="off"
         autoCapitalize="characters"
-        className="w-36 rounded-full border border-ink/30 bg-paper px-4 py-3 font-mono font-medium uppercase tracking-widest transition-[border-color,width] duration-300 placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-ink/55 hover:border-ink/60 focus:w-44 focus:border-ink"
+        className="w-44 rounded-[3px] border-2 border-ink bg-sheet px-3 font-mono uppercase tracking-widest placeholder:font-sans placeholder:normal-case placeholder:tracking-normal placeholder:text-ink/55"
       />
-      <Button type="submit" variant="outline" size="lg" disabled={!code.trim()}>
+      <Button type="submit" variant="secondary" disabled={!code.trim()}>
         Join
       </Button>
     </form>

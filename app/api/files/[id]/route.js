@@ -6,34 +6,26 @@ export const dynamic = "force-dynamic";
 
 // Download a private file. Allowed for exactly two people: the one who asked the question
 // (their voter token) and the presenter of that session (their presenter token).
-// Anyone else gets a plain 404, which does not even confirm the file exists.
+// Permission is part of the query itself, so there is one database round trip, and
+// anyone else gets a plain 404 that does not confirm the file exists.
 export async function POST(request, { params }) {
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
   const { voterToken, presenterToken } = body;
 
-  const file = await db.replyFile.findUnique({
-    where: { id },
-    include: {
-      reply: {
-        include: {
-          question: {
-            select: {
-              authorToken: true,
-              session: { select: { presenterToken: true } },
-            },
-          },
-        },
-      },
-    },
+  const allowed = [];
+  if (typeof voterToken === "string" && voterToken) allowed.push({ authorToken: voterToken });
+  if (typeof presenterToken === "string" && presenterToken) {
+    allowed.push({ session: { presenterToken } });
+  }
+  if (allowed.length === 0) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const file = await db.replyFile.findFirst({
+    where: { id, reply: { question: { OR: allowed } } },
   });
-
-  const q = file?.reply.question;
-  const isAsker = typeof voterToken === "string" && voterToken && q?.authorToken === voterToken;
-  const isPresenter =
-    typeof presenterToken === "string" && presenterToken && q?.session.presenterToken === presenterToken;
-
-  if (!file || (!isAsker && !isPresenter)) {
+  if (!file) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

@@ -41,7 +41,7 @@ Everything else is optional and the app works without it:
 |---|---|---|
 | Pusher (`PUSHER_*`) | The page checks the server every 3 to 4 seconds | Updates arrive instantly, and there is far less server load |
 | Upstash Redis (`UPSTASH_*`) | In-memory rate limits (fine for one server) | Shared rate limits across servers |
-| Anthropic key | Free built-in fake AI (`AI_MODE=mock`) | Real AI moderation, grouping and summaries |
+| GEMINI_API_KEY | Free built-in fake AI (`AI_MODE=mock`) | Real AI moderation, grouping and summaries |
 
 ## Updating from the last version
 
